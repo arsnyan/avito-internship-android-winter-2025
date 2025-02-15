@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/mobile_navigation"
+    app:startDestination="@+id/navigation_api_tracks">
+
+    <fragment
+        android:id="@+id/navigation_api_tracks"
+        android:name="com.arsnyan.musicapp.api.ApiTracksFragment"
+        android:label="@string/title_api_tracks"
+        tools:layout="@layout/fragment_api_tracks">
+        <argument
+            android:name="restoreState"
+            android:defaultValue="true"
+            app:argType="boolean" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/navigation_local_tracks"
+        android:name="com.arsnyan.musicapp.local.LocalTracksFragment"
+        android:label="@string/title_local_tracks"
+        tools:layout="@layout/fragment_local_tracks">
+        <argument
+            android:name="restoreState"
+            android:defaultValue="true"
+            app:argType="boolean" />
+    </fragment>
+</navigation>
