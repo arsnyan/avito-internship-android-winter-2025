@@ -6,5 +6,7 @@ data class Album(
     @SerializedName("title")
     val title: String,
     @SerializedName("cover")
-    val coverUrl: String
+    val coverUrl: String,
+    @SerializedName("cover_xl")
+    val coverXlUrl: String
 )
