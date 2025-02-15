@@ -30,6 +30,10 @@ class SharedViewModel @Inject constructor(
     private var currentTrackId = savedStateHandle.get<Long>("current_track_id") ?: -1
     private var currentTrackSource = savedStateHandle.get<TrackSource>("current_track_source") ?: TrackSource.NONE
 
+    fun getCurrentTrack(): Pair<Long?, TrackSource?> {
+        return Pair(currentTrackId, currentTrackSource)
+    }
+
     fun setCurrentTrack(id: Long, source: TrackSource) {
         currentTrackId = id
         savedStateHandle["current_track_id"] = id
@@ -38,7 +42,16 @@ class SharedViewModel @Inject constructor(
         loadTrack()
     }
 
+    fun clearCurrentTrack() {
+        setCurrentTrack(-1, TrackSource.NONE)
+        _uiState.value = TrackUiState.Empty
+    }
+
     fun loadTrack() {
+        if (currentTrackId == -1L) {
+            _uiState.value = TrackUiState.Empty
+            return
+        }
         _uiState.value = TrackUiState.Loading
         viewModelScope.launch {
             when (currentTrackSource) {

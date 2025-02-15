@@ -1,6 +1,7 @@
 package com.arsnyan.musicapp
 
 import android.Manifest
+import android.app.ComponentCaller
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -28,6 +29,7 @@ import com.arsnyan.musicapp.api.ApiTracksViewModel
 import com.arsnyan.musicapp.databinding.ActivityMainBinding
 import com.arsnyan.musicapp.local.LocalTracksViewModel
 import com.arsnyan.musicapp.player.PlaybackService
+import com.arsnyan.tracklist.network.model.TrackSource
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -50,6 +52,17 @@ class MainActivity : AppCompatActivity() {
             val binder = service as PlaybackService.LocalBinder
             playbackService = binder.getService()
             isServiceBound = true
+            observePlaybackState()
+
+            playbackService?.getCurrentTrack()?.let { track ->
+                if (
+                    playbackService?.playbackState?.value == PlaybackService.PlaybackState.Playing ||
+                    playbackService?.playbackState?.value == PlaybackService.PlaybackState.Paused
+                ) {
+                    Log.d("MainActivity", "Setting track onServiceConnected. Track: ${track.id}, ${track.trackSource}")
+                    sharedViewModel.setCurrentTrack(track.id, track.trackSource)
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -73,8 +86,15 @@ class MainActivity : AppCompatActivity() {
         }
         navView.setupWithNavController(navController)
 
-        binding.collapsedPlayer.collapsedPlayer.visibility = View.GONE
         observeViewModel()
+
+        // If activity is launched from a notification
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
     }
 
     override fun onStart() {
@@ -93,7 +113,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun observeViewModel() {
+    private fun handleIntent(intent: Intent?) {
+        intent?.let {
+            val trackId = it.getLongExtra("track_id", -1)
+            val trackSourceStr = it.getStringExtra("track_source")
+
+            if (trackId != -1L && !trackSourceStr.isNullOrEmpty()) {
+                try {
+                    val trackSource = TrackSource.valueOf(trackSourceStr)
+                    if (trackId != sharedViewModel.getCurrentTrack().first ||
+                        trackSource != sharedViewModel.getCurrentTrack().second) {
+                        sharedViewModel.setCurrentTrack(trackId, trackSource)
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Invalid track source: $trackSourceStr")
+                }
+            }
+        }
+    }
+
+    private fun observeViewModel() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 sharedViewModel.uiState.collect { uiState ->
@@ -103,38 +142,77 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleUiTrackState(uiState: SharedViewModel.TrackUiState) {// Handle error state
-        if (uiState is SharedViewModel.TrackUiState.Success) {
-            with (binding.collapsedPlayer) {
-                Log.d("MainActivity", "Track: ${uiState.track}")
-                collapsedPlayer.visibility = View.VISIBLE
-                trackTitle.text = uiState.track.title
-                trackArtist.text = uiState.track.artist.name
-                trackCover.load(uiState.track.album.coverUrl) {
-                    placeholder(com.arsnyan.tracklist.R.drawable.cover_placeholder)
-                    error(com.arsnyan.tracklist.R.drawable.cover_placeholder)
-                    crossfade(true)
-                }
+    private fun observePlaybackState() {
+        if (!isServiceBound) return
 
-                playPauseBtn.setOnClickListener {
-                    if (playbackService?.isPlaying?.value == true) {
-                        playbackService?.pause()
-                        playPauseBtn.icon = AppCompatResources.getDrawable(baseContext, R.drawable.play_arrow_24px)
-                    } else {
-                        playbackService?.resume()
-                        playPauseBtn.icon = AppCompatResources.getDrawable(baseContext, R.drawable.pause_24px)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                playbackService?.playbackState?.collect { state ->
+                    when (state) {
+                        PlaybackService.PlaybackState.Completed -> {
+                            sharedViewModel.clearCurrentTrack()
+                        }
+                        PlaybackService.PlaybackState.Paused -> {
+                            binding.collapsedPlayer.playPauseBtn.icon =
+                                AppCompatResources.getDrawable(baseContext, R.drawable.play_arrow_24px)
+                        }
+                        PlaybackService.PlaybackState.Playing -> {
+                            binding.collapsedPlayer.playPauseBtn.icon =
+                                AppCompatResources.getDrawable(baseContext, R.drawable.pause_24px)
+                        }
+                        else -> {}
                     }
                 }
+            }
+        }
+    }
 
-                if (isServiceBound) {
-                    playbackService?.play(uiState.track)
-                } else {
-                    val intent = Intent(this@MainActivity, PlaybackService::class.java)
-                    bindService(intent, serviceConnection, BIND_AUTO_CREATE)
+    private fun handleUiTrackState(uiState: SharedViewModel.TrackUiState) {// Handle error state
+        when (uiState) {
+            is SharedViewModel.TrackUiState.Success -> {
+                with (binding.collapsedPlayer) {
+                    Log.d("MainActivity", "Track: ${uiState.track}")
+                    collapsedPlayer.visibility = View.VISIBLE
+                    trackTitle.text = uiState.track.title
+                    trackArtist.text = uiState.track.artist.name
+                    trackCover.load(uiState.track.album.coverUrl) {
+                        placeholder(com.arsnyan.tracklist.R.drawable.cover_placeholder)
+                        error(com.arsnyan.tracklist.R.drawable.cover_placeholder)
+                        crossfade(true)
+                    }
+
+                    playPauseBtn.setOnClickListener {
+                        when (playbackService?.playbackState?.value) {
+                            PlaybackService.PlaybackState.Playing -> {
+                                playbackService?.pause()
+                            }
+                            PlaybackService.PlaybackState.Paused,
+                            PlaybackService.PlaybackState.Completed,
+                            PlaybackService.PlaybackState.Idle -> {
+                                playbackService?.resume()
+                            }
+                            PlaybackService.PlaybackState.Loading -> {
+                                // Optionally handle loading state - probably best to do nothing while loading
+                            }
+                            is PlaybackService.PlaybackState.Error -> {
+                                // Optionally handle error state - maybe try to resume or show an error message
+                                playbackService?.resume()
+                            }
+                            null -> {
+                                // Handle case when playbackState is null (shouldn't happen in practice)
+                            }
+                        }
+                    }
+
+                    if (isServiceBound) {
+                        playbackService?.play(uiState.track)
+                    }
                 }
             }
-        } else if (uiState is SharedViewModel.TrackUiState.Empty) {
-            binding.collapsedPlayer.collapsedPlayer.visibility = View.GONE
+
+            is SharedViewModel.TrackUiState.Empty, is SharedViewModel.TrackUiState.Loading, is SharedViewModel.TrackUiState.Error -> {
+                binding.collapsedPlayer.collapsedPlayer.visibility = View.GONE
+            }
         }
     }
 

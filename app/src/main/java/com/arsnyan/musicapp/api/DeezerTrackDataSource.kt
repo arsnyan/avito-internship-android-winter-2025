@@ -1,6 +1,7 @@
 package com.arsnyan.musicapp.api
 
 import com.arsnyan.tracklist.network.model.Track
+import com.arsnyan.tracklist.network.model.TrackSource
 import com.arsnyan.tracklist.network.repository.TrackDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,7 +44,7 @@ class DeezerTrackDataSource @Inject constructor(private val apiService: DeezerAp
             val response = apiService.getTrackById(id)
             if (response.isSuccessful) {
                 response.body()?.let {
-                    Result.success(it)
+                    Result.success(it.copy(trackSource = TrackSource.DEEZER))
                 } ?: Result.failure(Exception("Empty response body"))
             } else {
                 Result.failure(Exception("Response failed with code: ${response.code()}"))

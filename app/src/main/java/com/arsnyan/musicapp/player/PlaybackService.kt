@@ -14,7 +14,6 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import android.widget.Toast
-import androidx.lifecycle.SavedStateHandle
 import com.arsnyan.musicapp.MainActivity
 import com.arsnyan.tracklist.network.model.Track
 import com.arsnyan.tracklist.network.model.TrackSource
@@ -25,6 +24,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,14 +37,16 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     private val notificationId = 1
     private var currentTrack: Track? = null
 
+    fun getCurrentTrack(): Track? {
+        Log.d("PlaybackService", "Is track source available? ${currentTrack?.trackSource}")
+        return currentTrack
+    }
+
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
     @Inject
     lateinit var sharedPreferences: SharedPreferences
-
-    private val _isPlaying = MutableStateFlow(false)
-    val isPlaying: StateFlow<Boolean> = _isPlaying
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition
@@ -62,12 +64,24 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
         return binder
     }
 
+    private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
+    val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+
+    sealed class PlaybackState {
+        object Idle : PlaybackState()
+        object Loading : PlaybackState()
+        object Playing : PlaybackState()
+        object Paused : PlaybackState()
+        object Completed : PlaybackState()
+        data class Error(val message: String) : PlaybackState()
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         serviceScope.launch {
             while (true) {
-                if (_isPlaying.value) {
+                if (_playbackState.value == PlaybackState.Playing) {
                     mediaPlayer?.currentPosition?.toLong()?.let {
                         _currentPosition.value = it
                         savePositionToSharedPrefs(it)
@@ -85,6 +99,8 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     fun play(track: Track) {
         currentTrack = track
         releaseMediaPlayer()
+        _playbackState.value = PlaybackState.Playing
+
         mediaPlayer = MediaPlayer().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -111,17 +127,17 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     }
 
     fun resume() {
-        if (mediaPlayer != null && !_isPlaying.value) {
+        if (mediaPlayer != null && _playbackState.value == PlaybackState.Paused) {
             mediaPlayer?.start()
-            _isPlaying.value = true
+            _playbackState.value = PlaybackState.Playing
             startForeground(notificationId, createNotification())
         }
     }
 
     fun pause() {
-        if (mediaPlayer != null && _isPlaying.value) {
+        if (mediaPlayer != null && _playbackState.value == PlaybackState.Playing) {
             mediaPlayer?.pause()
-            _isPlaying.value = false
+            _playbackState.value = PlaybackState.Paused
             stopForeground(false)
         }
     }
@@ -131,7 +147,7 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
             stop()
             reset()
         }
-        _isPlaying.value = false
+        _playbackState.value = PlaybackState.Idle
         stopForeground(true)
         _currentPosition.value = 0L
         savePositionToSharedPrefs(0L)
@@ -148,7 +164,7 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
         Toast.makeText(this@PlaybackService, "Error playing music", Toast.LENGTH_SHORT).show()
         releaseMediaPlayer()
         stopForeground(true)
-        _isPlaying.value = false
+        _playbackState.value = PlaybackState.Error("Error playing music: ${e.message}")
     }
 
     private fun releaseMediaPlayer() {
@@ -163,7 +179,7 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
                 mediaPlayer?.seekTo(savedPosition.toInt())
             }
             mp.start()
-            _isPlaying.value = true
+            _playbackState.value = PlaybackState.Playing
         }
     }
 
@@ -176,12 +192,13 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
         Toast.makeText(this, "MediaPlayer error", Toast.LENGTH_SHORT).show()
         releaseMediaPlayer()
         stopForeground(true)
-        _isPlaying.value = false
+        _playbackState.value = PlaybackState.Error("MediaPlayer error: $what")
         return true
     }
 
     override fun onCompletion(mp: MediaPlayer?) {
         stop()
+        _playbackState.value = PlaybackState.Completed
         // TODO(play next track)
     }
 
@@ -199,19 +216,26 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     }
 
     private fun createNotification(): Notification {
-        val notificationIntent = Intent(this, MainActivity::class.java)
+        val notificationIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("track_id", currentTrack?.id ?: -1)
+            putExtra("track_source", currentTrack?.trackSource?.name)
+        }
+
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
+            this,
+            0,
+            notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = Notification.Builder(this, channelId)
+        return Notification.Builder(this, channelId)
             .setContentTitle(currentTrack?.title ?: "Music Player")
             .setContentText(currentTrack?.artist?.name ?: "Unknown artist")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
-        return notification
     }
 
     private fun savePositionToSharedPrefs(position: Long) {
