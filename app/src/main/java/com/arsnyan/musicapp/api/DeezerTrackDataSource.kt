@@ -38,7 +38,7 @@ class DeezerTrackDataSource @Inject constructor(private val apiService: DeezerAp
         }
     }
 
-    override suspend fun getTrackById(id: Int): Result<Track> = withContext(Dispatchers.IO) {
+    override suspend fun getTrackById(id: Long): Result<Track> = withContext(Dispatchers.IO) {
         try {
             val response = apiService.getTrackById(id)
             if (response.isSuccessful) {

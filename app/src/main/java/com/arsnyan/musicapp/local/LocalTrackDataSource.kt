@@ -8,6 +8,7 @@ import android.util.Log
 import com.arsnyan.tracklist.network.model.Album
 import com.arsnyan.tracklist.network.model.Artist
 import com.arsnyan.tracklist.network.model.Track
+import com.arsnyan.tracklist.network.model.TrackSource
 import com.arsnyan.tracklist.network.repository.TrackDataSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -20,12 +21,79 @@ class LocalTrackDataSource @Inject constructor(@ApplicationContext private val c
         fetchLocalTracks()
     }
 
+
     override suspend fun searchTracks(query: String): Result<List<Track>> = withContext(Dispatchers.IO) {
         fetchLocalTracks(query)
     }
 
-    override suspend fun getTrackById(id: Int): Result<Track> {
-        TODO("Not yet implemented")
+    override suspend fun getTrackById(id: Long): Result<Track> {
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DURATION // Add duration to the projection
+        )
+
+        val selection = "${MediaStore.Audio.Media._ID} = ?"
+        val selectionArgs = arrayOf(id.toString())
+
+        try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                    val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                    val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+                    val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                    val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+
+                    val id = cursor.getLong(idColumn)
+                    val title = cursor.getString(titleColumn)
+                    val artist = cursor.getString(artistColumn)
+                    val albumId = cursor.getLong(albumIdColumn)
+                    val data = cursor.getString(dataColumn)
+                    val duration = cursor.getLong(durationColumn) // Get duration from cursor
+
+
+                    val albumCoverUri = ContentUris.withAppendedId(
+                        Uri.parse("content://media/external/albumart"),
+                        albumId
+                    ).toString()
+
+                    val artistData = Artist(name = artist)
+                    val albumData = Album(
+                        title = "Unknown album", // You might want to query for the album title
+                        coverUrl = albumCoverUri,
+                        coverXlUrl = albumCoverUri
+                    )
+
+                    return Result.success(
+                        Track(
+                            id = id,
+                            title = title,
+                            artist = artistData,
+                            album = albumData,
+                            srcUrl = data,
+                            duration = duration.toInt(),
+                            trackSource = TrackSource.LOCAL
+                        )
+                    )
+                } else {
+                    return Result.failure(Exception("No track found with ID: $id"))
+                }
+            } ?: return Result.failure(Exception("Cursor is null"))
+        } catch (e: Exception) {
+            Log.e("MUSICAPP", "Error fetching track by ID: ${e.message}", e)
+            return Result.failure(e)
+        }
     }
 
     private fun fetchLocalTracks(query: String = ""): Result<List<Track>> {
@@ -35,7 +103,8 @@ class LocalTrackDataSource @Inject constructor(@ApplicationContext private val c
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ARTIST,
             MediaStore.Audio.Media.ALBUM_ID,
-            MediaStore.Audio.Media.DATA
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DURATION
         )
 
         val selection = if (query.isNotEmpty()) {
@@ -63,6 +132,7 @@ class LocalTrackDataSource @Inject constructor(@ApplicationContext private val c
                 val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                 val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
                 val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+                val durationColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
@@ -70,6 +140,7 @@ class LocalTrackDataSource @Inject constructor(@ApplicationContext private val c
                     val artist = cursor.getString(artistColumn)
                     val albumId = cursor.getLong(albumIdColumn)
                     val data = cursor.getString(dataColumn)
+                    val duration = cursor.getInt(durationColumn)
 
                     val albumCoverUri = ContentUris.withAppendedId(
                         Uri.parse("content://media/external/albumart"),
@@ -77,7 +148,10 @@ class LocalTrackDataSource @Inject constructor(@ApplicationContext private val c
                     ).toString()
 
                     val artistData = Artist(name = artist)
-                    val albumData = Album(title = "Unknown album", coverUrl = albumCoverUri)
+                    val albumData = Album(
+                        title = "Unknown album", coverUrl = albumCoverUri,
+                        coverXlUrl = albumCoverUri
+                    )
                     tracks.add(
                         Track(
                             id = id,
@@ -85,8 +159,9 @@ class LocalTrackDataSource @Inject constructor(@ApplicationContext private val c
                             artist = artistData,
                             album = albumData,
                             srcUrl = data,
-                            duration = 0
-                        ) // duration is unnecessary in this case, so I'd rather not bother to retrieve it here
+                            duration = duration,
+                            trackSource = TrackSource.LOCAL
+                        )
                     )
                 }
                 Log.i("MUSICAPP", tracks.toString())

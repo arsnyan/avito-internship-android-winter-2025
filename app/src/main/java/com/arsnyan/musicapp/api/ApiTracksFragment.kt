@@ -1,6 +1,7 @@
 package com.arsnyan.musicapp.api
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,7 +14,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.arsnyan.musicapp.SharedViewModel
 import com.arsnyan.tracklist.databinding.FragmentTracksBinding
+import com.arsnyan.tracklist.network.model.TrackSource
 import com.arsnyan.tracklist.ui.TrackListAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
@@ -25,6 +28,7 @@ class ApiTracksFragment : Fragment() {
     private var _binding: FragmentTracksBinding? = null
     private val binding get() = _binding!!
     private val viewModel: ApiTracksViewModel by activityViewModels()
+    private val sharedViewModel: SharedViewModel by activityViewModels()
     private lateinit var adapter: TrackListAdapter
 
     override fun onCreateView(
@@ -40,7 +44,8 @@ class ApiTracksFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         with(binding) {
             adapter = TrackListAdapter { track ->
-
+                Log.e("ApiTracksFragment", "Track clicked: $track")
+                sharedViewModel.setCurrentTrack(track.id, TrackSource.DEEZER)
             }
             trackList.layoutManager = LinearLayoutManager(requireContext())
             trackList.adapter = adapter

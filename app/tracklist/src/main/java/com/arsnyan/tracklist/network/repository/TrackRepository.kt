@@ -15,7 +15,7 @@ class TrackRepository(
         return dataSource.searchTracks(query)
     }
 
-    suspend fun getTrackById(id: Int): Result<Track> = withContext(Dispatchers.IO) {
+    suspend fun getTrackById(id: Long): Result<Track> = withContext(Dispatchers.IO) {
         dataSource.getTrackById(id)
     }
 }

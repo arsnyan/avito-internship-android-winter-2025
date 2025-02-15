@@ -1,5 +1,6 @@
 package com.arsnyan.tracklist.ui
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -25,7 +26,10 @@ class TrackListAdapter(private val onItemClicked: (Track) -> Unit) :
     ) {
         val track = getItem(position)
         holder.bind(track)
-        holder.itemView.setOnClickListener { onItemClicked(track) }
+        holder.itemView.setOnClickListener {
+            onItemClicked(track)
+            Log.d("TrackListAdapter", "Track clicked: ${track.title}")
+        }
     }
 
     inner class TrackViewHolder(private val binding: AdapterTrackBinding) : RecyclerView.ViewHolder(binding.root) {

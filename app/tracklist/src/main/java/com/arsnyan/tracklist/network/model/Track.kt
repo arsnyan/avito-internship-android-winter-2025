@@ -14,5 +14,6 @@ data class Track(
     @SerializedName("artist")
     val artist: Artist,
     @SerializedName("album")
-    val album: Album
+    val album: Album,
+    val trackSource: TrackSource = TrackSource.DEEZER
 )
