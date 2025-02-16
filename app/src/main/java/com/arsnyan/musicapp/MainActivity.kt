@@ -1,12 +1,8 @@
 package com.arsnyan.musicapp
 
 import android.Manifest
-import android.app.ComponentCaller
-import android.content.BroadcastReceiver
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -102,6 +98,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
         navView.setupWithNavController(navController)
+
+        checkPermission()
 
         observeViewModel()
 
@@ -210,9 +208,6 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     collapsedPlayer.setOnClickListener {
-//                        val navController = supportFragmentManager
-//                            .findFragmentById(R.id.nav_host_fragment_activity_main)
-//                            ?.findNavController()
                         navController?.navigate(R.id.navigation_player)
                     }
                     playPauseBtn.setOnClickListener {
@@ -271,7 +266,6 @@ class MainActivity : AppCompatActivity() {
             } else {
                 permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true
             }
-            val isPostGranted = permissions[Manifest.permission.POST_NOTIFICATIONS] == true
 
             if (!isReadGranted) {
                 Toast.makeText(baseContext, "Permission denied", Toast.LENGTH_SHORT).show()
@@ -288,8 +282,11 @@ class MainActivity : AppCompatActivity() {
                     ).show()
                 }
             }
-            if (!isPostGranted) {
-                Toast.makeText(baseContext, "Notification Permission denied", Toast.LENGTH_SHORT).show()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val isPostGranted = permissions[Manifest.permission.POST_NOTIFICATIONS] == true
+                if (!isPostGranted) {
+                    Toast.makeText(baseContext, "Notification Permission denied", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
@@ -298,14 +295,14 @@ class MainActivity : AppCompatActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS) // Request POST_NOTIFICATIONS
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
         val permissionsToRequest = permissions.filter {
             ContextCompat.checkSelfPermission(baseContext, it) != PackageManager.PERMISSION_GRANTED
-        }.toTypedArray() //Convert to array
+        }.toTypedArray()
 
         if (permissionsToRequest.isNotEmpty()) {
             requestPermissionLauncher.launch(permissionsToRequest)

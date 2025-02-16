@@ -15,7 +15,6 @@ import android.os.IBinder
 import android.util.Log
 import android.widget.Toast
 import com.arsnyan.musicapp.MainActivity
-import com.arsnyan.musicapp.SharedViewModel
 import com.arsnyan.tracklist.network.model.Track
 import com.arsnyan.tracklist.network.model.TrackSource
 import dagger.hilt.android.AndroidEntryPoint
@@ -57,6 +56,9 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition
+
+    private val _mediaDuration = MutableStateFlow(0L)
+    val mediaDuration: StateFlow<Long> = _mediaDuration.asStateFlow()
 
     companion object {
         private const val PREF_TRACK_ID = "track_id"
@@ -100,6 +102,14 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "PLAY" -> resume()
+            "PAUSE" -> pause()
+            "PREVIOUS" -> onTrackCompletionListener?.invoke()
+            "NEXT" -> onTrackCompletionListener?.invoke()
+            "FORWARD" -> skipForward()
+            "BACKWARD" -> skipBackward()
+        }
         return START_STICKY
     }
 
@@ -143,9 +153,16 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
 
     fun pause() {
         if (mediaPlayer != null && _playbackState.value == PlaybackState.Playing) {
-            mediaPlayer?.pause()
-            _playbackState.value = PlaybackState.Paused
-            stopForeground(false)
+            try {
+                mediaPlayer?.pause()
+                _playbackState.value = PlaybackState.Paused
+                val notification = createNotification()
+                val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                notificationManager.notify(notificationId, notification)
+                stopForeground(false)
+            } catch (e: Exception) {
+                handleMediaError(e)
+            }
         }
     }
 
@@ -164,6 +181,20 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
         mediaPlayer?.seekTo(position.toInt())
         _currentPosition.value = position
         savePositionToSharedPrefs(position)
+    }
+
+    fun skipForward() {
+        mediaPlayer?.let { player ->
+            val newPosition = minOf(player.duration.toLong(), (player.currentPosition + 10000).toLong())
+            seekTo(newPosition)
+        }
+    }
+
+    fun skipBackward() {
+        mediaPlayer?.let { player ->
+            val newPosition = maxOf(0L, (player.currentPosition - 1000).toLong())
+            seekTo(newPosition)
+        }
     }
 
     private fun handleMediaError(e: Exception) {
@@ -185,6 +216,8 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
             if (savedPosition > 0) {
                 mediaPlayer?.seekTo(savedPosition.toInt())
             }
+            Log.d("PlaybackService", mp.duration.toString())
+            _mediaDuration.value = mp.duration.toLong()
             mp.start()
             _playbackState.value = PlaybackState.Playing
         }
@@ -238,12 +271,78 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val playPauseIntent = Intent(this, PlaybackService::class.java).apply {
+            action = if (_playbackState.value == PlaybackState.Playing) "PAUSE" else "PLAY"
+        }
+        val skipPreviousIntent = Intent(this, PlaybackService::class.java).apply { action = "PREVIOUS" }
+        val skipNextIntent = Intent(this, PlaybackService::class.java).apply { action = "NEXT" }
+        val skipBackwardIntent = Intent(this, PlaybackService::class.java).apply { action = "BACKWARD" }
+        val skipForwardIntent = Intent(this, PlaybackService::class.java).apply { action = "FORWARD" }
+
+        val playPausePendingIntent = PendingIntent.getService(
+            this, 0, playPauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val skipPreviousPendingIntent = PendingIntent.getService(
+            this, 1, skipPreviousIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val skipNextPendingIntent = PendingIntent.getService(
+            this, 2, skipNextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val skipBackwardPendingIntent = PendingIntent.getService(
+            this, 3, skipBackwardIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val skipForwardPendingIntent = PendingIntent.getService(
+            this, 4, skipForwardIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val mediaStyle = Notification.MediaStyle()
+            .setShowActionsInCompactView(0, 1, 2, 3, 4)
+
         return Notification.Builder(this, channelId)
             .setContentTitle(currentTrack?.title ?: "Music Player")
             .setContentText(currentTrack?.artist?.name ?: "Unknown artist")
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setStyle(mediaStyle)
+            .addAction(
+                Notification.Action.Builder(
+                    android.R.drawable.ic_media_previous,
+                    "Previous",
+                    skipPreviousPendingIntent
+                ).build()
+            )
+            .addAction(
+                Notification.Action.Builder(
+                    android.R.drawable.ic_media_rew,
+                    "Backward",
+                    skipBackwardPendingIntent
+                ).build()
+            )
+            .addAction(
+                Notification.Action.Builder(
+                    if (_playbackState.value == PlaybackState.Playing)
+                        android.R.drawable.ic_media_pause
+                    else
+                        android.R.drawable.ic_media_play,
+                    "Previous",
+                    playPausePendingIntent
+                ).build()
+            )
+            .addAction(
+                Notification.Action.Builder(
+                    android.R.drawable.ic_media_ff,
+                    "Forward",
+                    skipForwardPendingIntent
+                ).build()
+            )
+            .addAction(
+                Notification.Action.Builder(
+                    android.R.drawable.ic_media_next,
+                    "Next",
+                    skipNextPendingIntent
+                ).build()
+            )
             .build()
     }
 

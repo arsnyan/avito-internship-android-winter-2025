@@ -5,12 +5,8 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -59,14 +55,17 @@ class PlayerFragment : Fragment() {
                 PlaybackService.PlaybackState.Playing -> {
                     playbackService.pause()
                 }
+
                 PlaybackService.PlaybackState.Paused,
                 PlaybackService.PlaybackState.Completed,
                 PlaybackService.PlaybackState.Idle -> {
                     playbackService.resume()
                 }
+
                 is PlaybackService.PlaybackState.Error -> {
                     playbackService.resume()
                 }
+
                 else -> {}
             }
         }
@@ -77,6 +76,14 @@ class PlayerFragment : Fragment() {
 
         binding.skipPreviousBtn.setOnClickListener {
             viewModel.moveToPreviousTrack()
+        }
+
+        binding.playbackSlider.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) {
+                val mainActivity = requireActivity() as MainActivity
+                val playbackService = mainActivity.getPlaybackService()
+                playbackService?.seekTo(value.toLong())
+            }
         }
     }
 
@@ -107,6 +114,7 @@ class PlayerFragment : Fragment() {
                                     com.arsnyan.musicapp.R.drawable.play_arrow_24px
                                 )
                         }
+
                         PlaybackService.PlaybackState.Playing -> {
                             binding.playPauseBtn.icon = AppCompatResources
                                 .getDrawable(
@@ -114,7 +122,36 @@ class PlayerFragment : Fragment() {
                                     com.arsnyan.musicapp.R.drawable.pause_24px
                                 )
                         }
+
                         else -> {}
+                    }
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val mainActivity = requireActivity() as MainActivity
+                val playbackService = mainActivity.getPlaybackService()
+                playbackService?.mediaDuration?.collect { duration ->
+                    Log.d("PlayerFragment", "$duration")
+                    if (duration > 0) {
+                        binding.trackDuration.text = secondsToMMSS((duration / 1000).toInt())
+                    }
+                    binding.playbackSlider.valueTo = duration.toFloat()
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val mainActivity = requireActivity() as MainActivity
+                val playbackService = mainActivity.getPlaybackService()
+                playbackService?.currentPosition?.collect { position ->
+                    binding.passedDuration.text = secondsToMMSS((position / 1000).toInt())
+                    binding.playbackSlider.value = ((position / 1000).toInt() * 1000).toFloat()
+                    binding.playbackSlider.setLabelFormatter { value ->
+                        secondsToMMSS((value / 1000).toInt())
                     }
                 }
             }
@@ -126,22 +163,28 @@ class PlayerFragment : Fragment() {
             is TrackUiState.Loading -> {
                 Log.d("PlayerFragment", "Loading track")
             }
+
             is TrackUiState.Success -> {
-                binding.albumTitle.text = uiState.track.album.title
-                binding.trackTitle.text = uiState.track.title
-                binding.trackArtist.text = uiState.track.artist.name
-                binding.passedDuration.text = secondsToMMSS(0)
-                binding.trackDuration.text = secondsToMMSS(uiState.track.duration)
-                binding.trackCover.load(uiState.track.album.coverXlUrl) {
-                    placeholder(R.drawable.cover_placeholder)
-                    error(R.drawable.cover_placeholder)
-                    crossfade(true)
+                binding.apply {
+                    albumTitle.text = uiState.track.album.title
+                    trackTitle.text = uiState.track.title
+                    trackArtist.text = uiState.track.artist.name
+                    passedDuration.text = secondsToMMSS(0)
+                    // trackDuration.text = secondsToMMSS(uiState.track.duration)
+                    trackCover.load(uiState.track.album.coverXlUrl) {
+                        placeholder(R.drawable.cover_placeholder)
+                        error(R.drawable.cover_placeholder)
+                        crossfade(true)
+                        crossfade(300)
+                    }
                 }
             }
+
             is TrackUiState.Error -> {
                 Log.e("PlayerFragment", "Error: ${uiState.message}")
                 Toast.makeText(requireContext(), "Something went wrong", Toast.LENGTH_SHORT).show()
             }
+
             is TrackUiState.Empty -> {
                 Toast.makeText(requireContext(), "No track is selected", Toast.LENGTH_SHORT).show()
             }

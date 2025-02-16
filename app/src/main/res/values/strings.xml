@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MusicApp</string>
+    <string name="app_name">Music Player</string>
     <string name="title_api_tracks">API Tracks</string>
     <string name="title_local_tracks">Local Tracks</string>
     <string name="title_tracks">Tracks</string>

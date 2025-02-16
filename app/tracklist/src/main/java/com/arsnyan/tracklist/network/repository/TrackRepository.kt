@@ -11,7 +11,7 @@ class TrackRepository(
         return dataSource.getAllTracks()
     }
 
-    suspend fun searchTracks(query: String): Result<List<Track>> {
+    suspend fun searchTracks(query: String): Result<List<Track>?> {
         return dataSource.searchTracks(query)
     }
 

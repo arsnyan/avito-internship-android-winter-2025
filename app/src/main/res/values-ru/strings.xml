@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MusicApp</string>
+    <string name="app_name">Плеер музыки</string>
     <string name="title_api_tracks">Музыка из API</string>
     <string name="title_local_tracks">Локальные треки</string>
     <string name="title_tracks">Треки</string>

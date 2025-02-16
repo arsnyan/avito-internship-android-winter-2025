@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="search">Запрос для поиска…</string>
+    <string name="no_results_found">Ничего не найдено</string>
 </resources>

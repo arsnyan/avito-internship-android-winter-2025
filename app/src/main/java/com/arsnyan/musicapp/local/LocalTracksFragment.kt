@@ -15,7 +15,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.arsnyan.musicapp.SharedViewModel
-import com.arsnyan.musicapp.api.ApiTracksViewModel
 import com.arsnyan.tracklist.databinding.FragmentTracksBinding
 import com.arsnyan.tracklist.network.model.TrackSource
 import com.arsnyan.tracklist.ui.TrackListAdapter

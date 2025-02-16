@@ -1,11 +1,6 @@
 package com.arsnyan.musicapp.api
 
 import com.arsnyan.tracklist.network.model.Track
-import com.arsnyan.tracklist.network.model.TrackSource
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonDeserializationContext
-import com.google.gson.JsonDeserializer
-import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.Retrofit
@@ -13,7 +8,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
-import java.lang.reflect.Type
 
 data class DeezerChartResponse(
     @SerializedName("tracks")

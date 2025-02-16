@@ -1,8 +1,8 @@
 package com.arsnyan.musicapp.di
 
 import com.arsnyan.musicapp.api.DeezerTrackDataSource
-import com.arsnyan.tracklist.network.repository.DeezerTracks
 import com.arsnyan.musicapp.local.LocalTrackDataSource
+import com.arsnyan.tracklist.network.repository.DeezerTracks
 import com.arsnyan.tracklist.network.repository.LocalTracks
 import com.arsnyan.tracklist.network.repository.TrackDataSource
 import dagger.Binds
