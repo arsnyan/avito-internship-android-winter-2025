@@ -52,6 +52,8 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit2.kotlinx.serialization.converter)
 
+    implementation(libs.coil)
+
     implementation(libs.androidx.fragment.ktx)
 
     implementation(libs.androidx.core.ktx)

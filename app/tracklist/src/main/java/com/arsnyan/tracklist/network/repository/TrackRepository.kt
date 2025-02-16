@@ -11,11 +11,11 @@ class TrackRepository(
         return dataSource.getAllTracks()
     }
 
-    suspend fun searchTracks(query: String): Result<List<Track>> {
+    suspend fun searchTracks(query: String): Result<List<Track>?> {
         return dataSource.searchTracks(query)
     }
 
-    suspend fun getTrackById(id: Int): Result<Track> = withContext(Dispatchers.IO) {
+    suspend fun getTrackById(id: Long): Result<Track> = withContext(Dispatchers.IO) {
         dataSource.getTrackById(id)
     }
 }

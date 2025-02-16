@@ -6,6 +6,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 data class DeezerChartResponse(
@@ -25,8 +26,8 @@ interface DeezerApiService {
     @GET("/search")
     suspend fun searchTracks(@Query("q") query: String): Response<TrackList>
 
-    @GET("/track")
-    suspend fun getTrackById(@Query("id") id: Int): Response<Track>
+    @GET("track/{id}")
+    suspend fun getTrackById(@Path("id") id: Long): Response<Track>
 
     companion object {
         private const val BASE_URL = "https://api.deezer.com/"

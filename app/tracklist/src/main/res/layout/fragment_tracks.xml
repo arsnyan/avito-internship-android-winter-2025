@@ -34,7 +34,7 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:visibility="gone"
-        android:text="No results found"
+        android:text="@string/no_results_found"
         tools:visibility="visible" />
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/track_list"

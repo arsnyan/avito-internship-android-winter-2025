@@ -1,18 +1,11 @@
 package com.arsnyan.musicapp.local
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
@@ -21,7 +14,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.arsnyan.musicapp.SharedViewModel
 import com.arsnyan.tracklist.databinding.FragmentTracksBinding
+import com.arsnyan.tracklist.network.model.TrackSource
 import com.arsnyan.tracklist.ui.TrackListAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
@@ -34,6 +29,7 @@ class LocalTracksFragment : Fragment() {
     private var _binding: FragmentTracksBinding? = null
     private val binding get() = _binding!!
     private val viewModel: LocalTracksViewModel by activityViewModels()
+    private val sharedViewModel: SharedViewModel by activityViewModels()
     private lateinit var adapter: TrackListAdapter
 
     override fun onCreateView(
@@ -47,14 +43,12 @@ class LocalTracksFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            checkPermission(Manifest.permission.READ_MEDIA_AUDIO)
-        } else {
-            checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
         with(binding) {
             adapter = TrackListAdapter { track ->
-
+                Log.e("LocalTracksFragment", "Track clicked: $track")
+                val currentTracks = (viewModel.uiState.value as? LocalTracksViewModel.TracksUiState.Success)?.tracks ?: emptyList()
+                sharedViewModel.setQueue(currentTracks)
+                sharedViewModel.setCurrentTrack(track.id, TrackSource.LOCAL)
             }
             trackList.layoutManager = LinearLayoutManager(requireContext())
             trackList.adapter = adapter
@@ -108,37 +102,6 @@ class LocalTracksFragment : Fragment() {
                 binding.statusView.isVisible = true
                 binding.trackList.isVisible = false
             }
-        }
-    }
-
-    private val requestPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (!isGranted) {
-                Toast.makeText(requireContext(), "Permission denied", Toast.LENGTH_SHORT).show()
-
-                if (!shouldShowRequestPermissionRationale(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", requireContext().packageName, null)
-                    }
-                    startActivity(intent)
-                    Toast.makeText(
-                        requireContext(),
-                        "Please enable storage permission in settings",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-
-    private fun checkPermission(permission: String) {
-        if (ContextCompat.checkSelfPermission(
-                requireContext(),
-                permission
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissionLauncher.launch(permission)
         }
     }
 
