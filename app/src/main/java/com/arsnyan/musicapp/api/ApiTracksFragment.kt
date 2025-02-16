@@ -45,6 +45,8 @@ class ApiTracksFragment : Fragment() {
         with(binding) {
             adapter = TrackListAdapter { track ->
                 Log.e("ApiTracksFragment", "Track clicked: $track")
+                val currentTracks = (viewModel.uiState.value as? ApiTracksViewModel.TracksUiState.Success)?.tracks ?: emptyList()
+                sharedViewModel.setQueue(currentTracks)
                 sharedViewModel.setCurrentTrack(track.id, TrackSource.DEEZER)
             }
             trackList.layoutManager = LinearLayoutManager(requireContext())

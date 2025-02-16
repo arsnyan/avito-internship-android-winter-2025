@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.util.Log
 import android.widget.Toast
 import com.arsnyan.musicapp.MainActivity
+import com.arsnyan.musicapp.SharedViewModel
 import com.arsnyan.tracklist.network.model.Track
 import com.arsnyan.tracklist.network.model.TrackSource
 import dagger.hilt.android.AndroidEntryPoint
@@ -40,6 +41,12 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     fun getCurrentTrack(): Track? {
         Log.d("PlaybackService", "Is track source available? ${currentTrack?.trackSource}")
         return currentTrack
+    }
+
+    private var onTrackCompletionListener: (() -> Unit)? = null
+
+    fun setOnTrackCompletionListener(listener: () -> Unit) {
+        onTrackCompletionListener = listener
     }
 
     private val serviceJob = Job()
@@ -197,9 +204,11 @@ class PlaybackService : Service(), MediaPlayer.OnPreparedListener,
     }
 
     override fun onCompletion(mp: MediaPlayer?) {
-        stop()
+        Log.d("PlaybackService", "Track completed, sending broadcast")
         _playbackState.value = PlaybackState.Completed
-        // TODO(play next track)
+        releaseMediaPlayer()
+        onTrackCompletionListener?.invoke()
+        stopForeground(true)
     }
 
     private fun createNotificationChannel() {

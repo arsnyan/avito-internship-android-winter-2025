@@ -14,7 +14,7 @@ class DeezerTrackDataSource @Inject constructor(private val apiService: DeezerAp
             val response = apiService.getTracks()
             if (response.isSuccessful) {
                 response.body()?.let {
-                    Result.success(it.tracks.data)
+                    Result.success(it.tracks.data.map { track -> track.copy(trackSource = TrackSource.DEEZER) })
                 } ?: Result.failure(Exception("Empty response body"))
             } else {
                 Result.failure(Exception("Response failed with code: ${response.code()}"))
@@ -29,7 +29,7 @@ class DeezerTrackDataSource @Inject constructor(private val apiService: DeezerAp
             val response = apiService.searchTracks(query)
             if (response.isSuccessful) {
                 response.body()?.let {
-                    Result.success(it.data)
+                    Result.success(it.data.map { track -> track.copy(trackSource = TrackSource.DEEZER) })
                 } ?: Result.failure(Exception("Empty response body"))
             } else {
                 Result.failure(Exception("Response failed with code: ${response.code()}"))

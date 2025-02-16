@@ -26,4 +26,10 @@
             android:defaultValue="true"
             app:argType="boolean" />
     </fragment>
+
+    <fragment
+        android:id="@+id/navigation_player"
+        android:name="com.arsnyan.musicapp.player.PlayerFragment"
+        android:label="Player"
+        tools:layout="@layout/expanded_player" />
 </navigation>

@@ -5,13 +5,20 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Toast
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
 import coil.load
+import com.arsnyan.musicapp.MainActivity
 import com.arsnyan.musicapp.SharedViewModel
 import com.arsnyan.musicapp.SharedViewModel.TrackUiState
 import com.arsnyan.musicapp.databinding.ExpandedPlayerBinding
@@ -34,8 +41,48 @@ class PlayerFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         observeViewModel()
+
+        binding.collapseBtn.setOnClickListener {
+            requireActivity()
+                .supportFragmentManager
+                .findFragmentById(com.arsnyan.musicapp.R.id.nav_host_fragment_activity_main)
+                ?.findNavController()
+                ?.navigateUp()
+        }
+
+        binding.playPauseBtn.setOnClickListener {
+            val mainActivity = requireActivity() as MainActivity
+            val playbackService = mainActivity.getPlaybackService()
+
+            when (playbackService?.playbackState?.value) {
+                PlaybackService.PlaybackState.Playing -> {
+                    playbackService.pause()
+                }
+                PlaybackService.PlaybackState.Paused,
+                PlaybackService.PlaybackState.Completed,
+                PlaybackService.PlaybackState.Idle -> {
+                    playbackService.resume()
+                }
+                is PlaybackService.PlaybackState.Error -> {
+                    playbackService.resume()
+                }
+                else -> {}
+            }
+        }
+
+        binding.skipNextBtn.setOnClickListener {
+            viewModel.moveToNextTrack()
+        }
+
+        binding.skipPreviousBtn.setOnClickListener {
+            viewModel.moveToPreviousTrack()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     private fun observeViewModel() {
@@ -43,6 +90,32 @@ class PlayerFragment : Fragment() {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
                     handleUiTrackState(uiState)
+                }
+            }
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val mainActivity = requireActivity() as MainActivity
+                val playbackService = mainActivity.getPlaybackService()
+                playbackService?.playbackState?.collect { state ->
+                    when (state) {
+                        PlaybackService.PlaybackState.Paused -> {
+                            binding.playPauseBtn.icon = AppCompatResources
+                                .getDrawable(
+                                    requireContext(),
+                                    com.arsnyan.musicapp.R.drawable.play_arrow_24px
+                                )
+                        }
+                        PlaybackService.PlaybackState.Playing -> {
+                            binding.playPauseBtn.icon = AppCompatResources
+                                .getDrawable(
+                                    requireContext(),
+                                    com.arsnyan.musicapp.R.drawable.pause_24px
+                                )
+                        }
+                        else -> {}
+                    }
                 }
             }
         }
@@ -54,10 +127,12 @@ class PlayerFragment : Fragment() {
                 Log.d("PlayerFragment", "Loading track")
             }
             is TrackUiState.Success -> {
+                binding.albumTitle.text = uiState.track.album.title
                 binding.trackTitle.text = uiState.track.title
                 binding.trackArtist.text = uiState.track.artist.name
+                binding.passedDuration.text = secondsToMMSS(0)
                 binding.trackDuration.text = secondsToMMSS(uiState.track.duration)
-                binding.trackCover.load(uiState.track.album.coverUrl) {
+                binding.trackCover.load(uiState.track.album.coverXlUrl) {
                     placeholder(R.drawable.cover_placeholder)
                     error(R.drawable.cover_placeholder)
                     crossfade(true)

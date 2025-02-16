@@ -2,8 +2,11 @@ package com.arsnyan.musicapp
 
 import android.Manifest
 import android.app.ComponentCaller
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -23,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.fragment.findNavController
 import androidx.navigation.ui.setupWithNavController
 import coil.load
 import com.arsnyan.musicapp.api.ApiTracksViewModel
@@ -54,6 +58,9 @@ class MainActivity : AppCompatActivity() {
             isServiceBound = true
             observePlaybackState()
 
+            playbackService?.setOnTrackCompletionListener {
+                sharedViewModel.moveToNextTrack()
+            }
             playbackService?.getCurrentTrack()?.let { track ->
                 if (
                     playbackService?.playbackState?.value == PlaybackService.PlaybackState.Playing ||
@@ -79,10 +86,20 @@ class MainActivity : AppCompatActivity() {
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment_activity_main) as NavHostFragment
         val navController = navHostFragment.navController
-        navController.addOnDestinationChangedListener { _, _, _ ->
+        navController.addOnDestinationChangedListener { _, destination, _ ->
             apiViewModel
             localViewModel
             sharedViewModel
+
+            if (destination.id == R.id.navigation_player) {
+                navView.visibility = View.GONE
+                binding.collapsedPlayer.collapsedPlayer.visibility = View.GONE
+            } else {
+                navView.visibility = View.VISIBLE
+                if (sharedViewModel.uiState.value is SharedViewModel.TrackUiState.Success) {
+                    binding.collapsedPlayer.collapsedPlayer.visibility = View.VISIBLE
+                }
+            }
         }
         navView.setupWithNavController(navController)
 
@@ -172,7 +189,18 @@ class MainActivity : AppCompatActivity() {
             is SharedViewModel.TrackUiState.Success -> {
                 with (binding.collapsedPlayer) {
                     Log.d("MainActivity", "Track: ${uiState.track}")
-                    collapsedPlayer.visibility = View.VISIBLE
+                    // collapsedPlayer.visibility = View.VISIBLE
+
+                    val navController = supportFragmentManager
+                        .findFragmentById(R.id.nav_host_fragment_activity_main)
+                        ?.findNavController()
+                    val currentDestination = navController?.currentDestination
+                    if (currentDestination?.id != R.id.navigation_player) {
+                        collapsedPlayer.visibility = View.VISIBLE
+                    } else {
+                        collapsedPlayer.visibility = View.GONE
+                    }
+
                     trackTitle.text = uiState.track.title
                     trackArtist.text = uiState.track.artist.name
                     trackCover.load(uiState.track.album.coverUrl) {
@@ -181,6 +209,12 @@ class MainActivity : AppCompatActivity() {
                         crossfade(true)
                     }
 
+                    collapsedPlayer.setOnClickListener {
+//                        val navController = supportFragmentManager
+//                            .findFragmentById(R.id.nav_host_fragment_activity_main)
+//                            ?.findNavController()
+                        navController?.navigate(R.id.navigation_player)
+                    }
                     playPauseBtn.setOnClickListener {
                         when (playbackService?.playbackState?.value) {
                             PlaybackService.PlaybackState.Playing -> {
@@ -204,6 +238,14 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
+                    skipNextBtn.setOnClickListener {
+                        sharedViewModel.moveToNextTrack()
+                    }
+
+                    skipPreviousBtn.setOnClickListener {
+                        sharedViewModel.moveToPreviousTrack()
+                    }
+
                     if (isServiceBound) {
                         playbackService?.play(uiState.track)
                     }
@@ -214,6 +256,10 @@ class MainActivity : AppCompatActivity() {
                 binding.collapsedPlayer.collapsedPlayer.visibility = View.GONE
             }
         }
+    }
+
+    fun getPlaybackService(): PlaybackService? {
+        return playbackService
     }
 
     private val requestPermissionLauncher =
